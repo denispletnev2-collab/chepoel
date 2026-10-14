@@ -36,6 +36,8 @@ function openSettingsModal() {
   document.getElementById('setFInput').value = state.goals.f;
   document.getElementById('setCInput').value = state.goals.c;
   document.getElementById('setApiKeyInput').value = state.apiKey || '';
+  const stBox = document.getElementById('apiKeyStatusBox');
+  if (stBox) { if (state.apiKey) { stBox.style.display = 'block'; stBox.style.background = 'rgba(59, 130, 246, 0.10)'; stBox.style.color = '#93c5fd'; stBox.innerHTML = '🔑 Ключ установлен в памяти. Нажмите <strong>«⚡ Проверить ключ»</strong> для проверки связи.'; } else { stBox.style.display = 'none'; } }
   document.getElementById('settingsModalBackdrop').classList.add('open'); syncModalBodyClass();
 }
 
@@ -306,4 +308,132 @@ function skipOnboardingWizard() {
   saveState();
   document.getElementById('onboardingOverlay').classList.remove('open');
   syncModalBodyClass();
+}
+
+
+function toggleApiKeyVisibility(inputId, btnEl) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    if (btnEl) btnEl.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    if (btnEl) btnEl.textContent = '👁️';
+  }
+}
+
+function saveApiKeyOnly() {
+  const inp = document.getElementById('setApiKeyInput');
+  const key = (inp ? inp.value : '').trim().replace(/[\s"'`]+/g, '');
+  if (inp) inp.value = key;
+  state.apiKey = key;
+  saveState();
+  const box = document.getElementById('apiKeyStatusBox');
+  if (box) {
+    box.style.display = 'block';
+    if (key) {
+      box.style.background = 'rgba(16, 185, 129, 0.14)';
+      box.style.color = '#6ee7b7';
+      box.innerHTML = '💾 Ключ сохранён на устройстве. Нажмите <strong>«⚡ Проверить ключ»</strong> для теста связи с Gemini.';
+    } else {
+      box.style.background = 'rgba(148, 163, 184, 0.14)';
+      box.style.color = '#cbd5e1';
+      box.innerHTML = 'ℹ️ Ключ очищен — включён автономный режим оценки порции.';
+    }
+  }
+  showToast(key ? '🔑 API ключ сохранён' : 'Включён автономный режим');
+}
+
+async function testApiKeyConnection(inputId = 'setApiKeyInput', statusBoxId = 'apiKeyStatusBox', btnId = 'testKeyBtn') {
+  const inp = document.getElementById(inputId);
+  const box = document.getElementById(statusBoxId);
+  const btn = document.getElementById(btnId);
+  if (!box) return;
+
+  const key = (inp ? inp.value : '').trim().replace(/[\s"'`]+/g, '');
+  if (inp) inp.value = key;
+  box.style.display = 'block';
+
+  if (!key) {
+    box.style.background = 'rgba(244, 63, 94, 0.15)';
+    box.style.color = '#fda4af';
+    box.innerHTML = '⚠️ Введите API-ключ в поле выше перед проверкой.';
+    return;
+  }
+
+  state.apiKey = key;
+  const otherInputId = inputId === 'setApiKeyInput' ? 'onbApiKey' : 'setApiKeyInput';
+  const otherInp = document.getElementById(otherInputId);
+  if (otherInp) otherInp.value = key;
+  saveState();
+
+  const origBtnText = btn ? btn.textContent : '⚡ Проверить ключ';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Проверка...';
+  }
+  box.style.background = 'rgba(59, 130, 246, 0.15)';
+  box.style.color = '#93c5fd';
+  box.innerHTML = '⏳ Проверяем соединение с сервером Google Gemini API...';
+
+  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  let lastErrorMsg = '';
+  let lastStatus = 0;
+
+  for (const m of models) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${encodeURIComponent(key)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'Ответь одним словом: ОК' }] }],
+          generationConfig: { maxOutputTokens: 8 }
+        })
+      });
+      lastStatus = r.status;
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.candidates) {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = origBtnText;
+        }
+        box.style.background = 'rgba(16, 185, 129, 0.16)';
+        box.style.color = '#6ee7b7';
+        box.innerHTML = `✅ <strong>Ключ активен и работает!</strong> Подключена модель <code>${m}</code>. Ключ автоматически сохранён.`;
+        showToast('✅ Ключ Gemini успешно проверен!');
+        return;
+      } else {
+        lastErrorMsg = (data && data.error && data.error.message) ? data.error.message : `HTTP ${r.status}`;
+        if (r.status === 400 && lastErrorMsg.toLowerCase().includes('key not valid')) {
+          break; // Invalid key, no need to retry other models
+        }
+      }
+    } catch (e) {
+      lastErrorMsg = e.message || 'Ошибка сети';
+    }
+  }
+
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = origBtnText;
+  }
+
+  if (lastStatus === 400 || lastErrorMsg.toLowerCase().includes('key not valid') || lastErrorMsg.toLowerCase().includes('api_key_invalid')) {
+    box.style.background = 'rgba(244, 63, 94, 0.16)';
+    box.style.color = '#fda4af';
+    box.innerHTML = `❌ <strong>Неверный ключ API:</strong> проверьте, что скопировали ключ из Google AI Studio целиком без пробелов. <br><span style="font-size:10.5px; opacity:0.85;">Ответ сервера: ${escapeHtml(lastErrorMsg)}</span>`;
+  } else if (lastStatus === 403 || lastErrorMsg.toLowerCase().includes('location is not supported')) {
+    box.style.background = 'rgba(245, 158, 11, 0.16)';
+    box.style.color = '#fcd34d';
+    box.innerHTML = `🌍 <strong>Ключ верный, но нужен VPN для запросов к Google AI:</strong> сервер Google ограничил доступ с вашего текущего региона (HTTP 403). Включите VPN при сканировании фото. <br><span style="font-size:10.5px; opacity:0.85;">Ответ: ${escapeHtml(lastErrorMsg)}</span>`;
+  } else if (lastStatus === 429) {
+    box.style.background = 'rgba(245, 158, 11, 0.16)';
+    box.style.color = '#fcd34d';
+    box.innerHTML = `⏳ <strong>Ключ рабочий, но превышен лимит запросов в минуту (HTTP 429).</strong> Подождите 30 секунд и попробуйте снова.`;
+  } else {
+    box.style.background = 'rgba(245, 158, 11, 0.16)';
+    box.style.color = '#fcd34d';
+    box.innerHTML = `⚠️ <strong>Не удалось связаться с сервером Gemini:</strong> ${escapeHtml(lastErrorMsg || 'проверьте подключение к интернету / VPN')}. Ключ сохранён, при отсутствии связи с API работает встроенный офлайн-анализатор тарелки.`;
+  }
 }
