@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chepoel-pwa-v3.9.0';
+const CACHE_NAME = 'chepoel-pwa-v4.0.0';
 const ASSETS = [
   './',
   './index.html',

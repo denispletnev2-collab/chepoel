@@ -642,7 +642,7 @@
   background: rgba(16, 185, 129, 0.08);
 }
 
-
+  
 /* Sleek Dark Scrollbars & Hidden Chip Scrollbars */
 .freq-chips {
   scrollbar-width: none;
@@ -665,6 +665,64 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent);
+}
+
+
+/* ==================== СИСТЕМА ДИСЦИПЛИНЫ, ШТРАФОВ И ЩИТОВ ЗАМОРОЗКИ ==================== */
+.cal-missed {
+  background: rgba(244, 63, 94, 0.16) !important;
+  border: 1.5px dashed rgba(244, 63, 94, 0.85) !important;
+  color: #fda4af !important;
+  box-shadow: inset 0 0 10px rgba(244, 63, 94, 0.18);
+}
+.cal-frozen {
+  background: rgba(6, 182, 212, 0.18) !important;
+  border: 1.5px solid rgba(56, 189, 248, 0.75) !important;
+  color: #67e8f9 !important;
+}
+.cal-redeemed {
+  background: rgba(139, 92, 246, 0.18) !important;
+  border: 1.5px solid rgba(167, 139, 250, 0.7) !important;
+  color: #ddd6fe !important;
+}
+.discipline-alert-bar {
+  margin-top: 12px;
+  padding: 11px 13px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+.discipline-alert-bar.penalty {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.16), rgba(245, 158, 11, 0.12));
+  border: 1px solid rgba(244, 63, 94, 0.55);
+}
+.discipline-alert-bar.clean {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.11), rgba(6, 182, 212, 0.09));
+  border: 1px solid rgba(16, 185, 129, 0.32);
+}
+.tour-feature-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 13px;
+  border-radius: 14px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-strong);
+  margin-bottom: 8px;
+}
+.tour-feature-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  flex-shrink: 0;
 }
 
 /* Compact Heatmap Calendar Cells so entire month fits cleanly above bottom nav */

@@ -59,14 +59,15 @@ function renderDiaryView() {
     const listHtml = items.length === 0 ? '' : `
       <div class="meal-items-list">
         ${items.map(({ m, idx }) => `
-          <div class="logged-row">
+          <div class="logged-row" onclick="openEditMealModal(${idx})" title="Нажмите, чтобы изменить граммовку, КБЖУ или приём пищи">
             <div class="logged-info">
               <div class="logged-name">${escapeHtml(m.name)}</div>
-              <div class="logged-meta">${m.grams} г • Б: ${m.p}г • Ж: ${m.f}г • У: ${m.c}г</div>
+              <div class="logged-meta">${m.grams} г • Б: ${m.p}г • Ж: ${m.f}г • У: ${m.c}г ${m.time ? '• ' + m.time : ''}</div>
             </div>
-            <div class="logged-right">
+            <div class="logged-right" onclick="event.stopPropagation()">
               <span class="logged-kcal">${Math.round(m.kcal)} ккал</span>
-              <button class="row-del-btn" onclick="deleteLoggedMeal(${idx})" title="Удалить">✕</button>
+              <button type="button" class="row-del-btn" style="color:var(--blue); border-color:rgba(59,130,246,0.28);" onclick="openEditMealModal(${idx})" title="Редактировать запись">✏️</button>
+              <button type="button" class="row-del-btn" onclick="deleteLoggedMeal(${idx})" title="Удалить">✕</button>
             </div>
           </div>
         `).join('')}
@@ -93,6 +94,7 @@ function renderDiaryView() {
   }).join('');
 
   document.getElementById('mealSectionsContainer').innerHTML = sectionsHtml;
+  renderDiaryDisciplineBar();
 }
 
 function addWaterMl() {
@@ -555,15 +557,21 @@ function saveAndLogLabelProduct() {
 }
 
 function logMealEntry(entry) {
+  const prevLvl = calculateProfileStats().level;
   const day = getDayData(currentDateStr);
+  const g = Math.max(1, Number(entry.grams) || 100);
   day.meals.push({
     name: entry.name,
     mealType: activeMealTarget,
-    grams: entry.grams,
-    kcal: entry.kcal,
-    p: entry.p,
-    f: entry.f,
-    c: entry.c,
+    grams: g,
+    kcal: Math.round(Number(entry.kcal) || 0),
+    p: Math.round((Number(entry.p) || 0) * 10) / 10,
+    f: Math.round((Number(entry.f) || 0) * 10) / 10,
+    c: Math.round((Number(entry.c) || 0) * 10) / 10,
+    kcal100: Number(entry.kcal100) || Math.round(((Number(entry.kcal) || 0) / g) * 100),
+    p100: Number(entry.p100) || Math.round(((Number(entry.p) || 0) / g) * 1000) / 10,
+    f100: Number(entry.f100) || Math.round(((Number(entry.f) || 0) / g) * 1000) / 10,
+    c100: Number(entry.c100) || Math.round(((Number(entry.c) || 0) / g) * 1000) / 10,
     time: new Date().toTimeString().slice(0, 5)
   });
   recordRecentItem(entry);
@@ -571,5 +579,112 @@ function logMealEntry(entry) {
   renderAll();
   closeAddSheet();
   const mealTitle = (MEAL_TYPES.find(m => m.id === activeMealTarget) || {}).title || 'Дневник';
-  showToast(`✅ Добавлено в «${mealTitle}» (+40 XP)`);
+  showToast(`✅ Добавлено в «${mealTitle}» (+45 XP)`);
+  checkAndTriggerLevelUp(prevLvl);
+}
+
+/* ==================== EDIT LOGGED MEAL MODAL ==================== */
+let editingMealIndex = -1;
+let editingMealBase100 = { kcal100: 150, p100: 10, f100: 6, c100: 15 };
+
+function openEditMealModal(idx) {
+  const day = getDayData(currentDateStr);
+  const m = day.meals[idx];
+  if (!m) return;
+  editingMealIndex = idx;
+
+  const g = Math.max(1, Number(m.grams) || 100);
+  editingMealBase100 = {
+    kcal100: Number(m.kcal100) || ((Number(m.kcal) || 0) / g) * 100,
+    p100: Number(m.p100) || ((Number(m.p) || 0) / g) * 100,
+    f100: Number(m.f100) || ((Number(m.f) || 0) / g) * 100,
+    c100: Number(m.c100) || ((Number(m.c) || 0) / g) * 100
+  };
+
+  document.getElementById('editMealNameInput').value = m.name || '';
+  document.getElementById('editMealTypeSelect').value = m.mealType || 'breakfast';
+  document.getElementById('editMealGramsInput').value = g;
+  document.getElementById('editMealKcalInput').value = Math.round(Number(m.kcal) || 0);
+  document.getElementById('editMealPInput').value = Math.round((Number(m.p) || 0) * 10) / 10;
+  document.getElementById('editMealFInput').value = Math.round((Number(m.f) || 0) * 10) / 10;
+  document.getElementById('editMealCInput').value = Math.round((Number(m.c) || 0) * 10) / 10;
+
+  document.getElementById('editMealModalBackdrop').classList.add('open');
+  if (typeof syncModalBodyClass === 'function') syncModalBodyClass();
+}
+
+function closeEditMealModal() {
+  document.getElementById('editMealModalBackdrop').classList.remove('open');
+  if (typeof syncModalBodyClass === 'function') syncModalBodyClass();
+}
+
+function stepEditMealGrams(delta) {
+  const inp = document.getElementById('editMealGramsInput');
+  const nextG = Math.max(5, (Number(inp.value) || 100) + delta);
+  inp.value = nextG;
+  recalcEditMealFromGrams();
+}
+
+function recalcEditMealFromGrams() {
+  const g = Math.max(1, Number(document.getElementById('editMealGramsInput').value) || 100);
+  const ratio = g / 100;
+  document.getElementById('editMealKcalInput').value = Math.round(editingMealBase100.kcal100 * ratio);
+  document.getElementById('editMealPInput').value = Math.round(editingMealBase100.p100 * ratio * 10) / 10;
+  document.getElementById('editMealFInput').value = Math.round(editingMealBase100.f100 * ratio * 10) / 10;
+  document.getElementById('editMealCInput').value = Math.round(editingMealBase100.c100 * ratio * 10) / 10;
+}
+
+function saveEditedMeal() {
+  const day = getDayData(currentDateStr);
+  if (editingMealIndex < 0 || !day.meals[editingMealIndex]) return;
+
+  const g = Math.max(1, Number(document.getElementById('editMealGramsInput').value) || 100);
+  const kcal = Math.max(0, Math.round(Number(document.getElementById('editMealKcalInput').value) || 0));
+  const p = Math.max(0, Math.round((Number(document.getElementById('editMealPInput').value) || 0) * 10) / 10);
+  const f = Math.max(0, Math.round((Number(document.getElementById('editMealFInput').value) || 0) * 10) / 10);
+  const c = Math.max(0, Math.round((Number(document.getElementById('editMealCInput').value) || 0) * 10) / 10);
+
+  day.meals[editingMealIndex] = Object.assign({}, day.meals[editingMealIndex], {
+    name: document.getElementById('editMealNameInput').value.trim() || 'Блюдо',
+    mealType: document.getElementById('editMealTypeSelect').value || 'breakfast',
+    grams: g,
+    kcal, p, f, c,
+    kcal100: Math.round((kcal / g) * 100),
+    p100: Math.round((p / g) * 1000) / 10,
+    f100: Math.round((f / g) * 1000) / 10,
+    c100: Math.round((c / g) * 1000) / 10
+  });
+
+  saveState();
+  renderAll();
+  closeEditMealModal();
+  showToast('✏️ Приём пищи обновлён');
+}
+
+function duplicateEditedMeal() {
+  const day = getDayData(currentDateStr);
+  if (editingMealIndex < 0 || !day.meals[editingMealIndex]) return;
+  const prevLvl = calculateProfileStats().level;
+  saveEditedMeal();
+  const copy = Object.assign({}, day.meals[editingMealIndex], {
+    time: new Date().toTimeString().slice(0, 5)
+  });
+  day.meals.push(copy);
+  saveState();
+  renderAll();
+  showToast('📋 Блюдо продублировано (+45 XP)');
+  checkAndTriggerLevelUp(prevLvl);
+}
+
+function deleteEditedMeal() {
+  if (editingMealIndex < 0) return;
+  deleteLoggedMeal(editingMealIndex);
+  closeEditMealModal();
+}
+
+
+
+function syncModalBodyClass() {
+  const anyOpen = document.querySelectorAll('.sheet-backdrop.open, .onb-overlay.open').length > 0;
+  document.body.classList.toggle('modal-open', anyOpen);
 }

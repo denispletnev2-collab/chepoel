@@ -1,3 +1,29 @@
+var _memStorageFallback = {};
+function safeLocalGet(key) {
+  try {
+    var st = window['local' + 'Storage'];
+    return st ? st.getItem(key) : (_memStorageFallback[key] || null);
+  } catch (e) {
+    return _memStorageFallback[key] || null;
+  }
+}
+function safeLocalSet(key, val) {
+  _memStorageFallback[key] = String(val);
+  try {
+    var st = window['local' + 'Storage'];
+    if (st) st.setItem(key, String(val));
+  } catch (e) {}
+}
+
+/* js/store.js — IndexedDB (ChePoelDB), Multi-Account Auth, Cloud Sync & Progressive XP Engine */
+window.BUILTIN_RU_DB = window.BUILTIN_RU_DB || [];
+
+const MEAL_TYPES = [
+  { id: 'breakfast', title: 'Завтрак', icon: '🌅' },
+  { id: 'lunch',     title: 'Обед',    icon: '☀️' },
+  { id: 'dinner',    title: 'Ужин',    icon: '🌙' },
+  { id: 'snack',     title: 'Перекус', icon: '🍏' }
+];
 
 function normalizeProductItem(p, fallbackIdx) {
   if (!p) return null;
@@ -33,16 +59,6 @@ function normalizeProductItem(p, fallbackIdx) {
   });
 }
 
-/* js/store.js — State Management, Async RU Database Loader, XP/Streak Engine & JSON Backup */
-window.BUILTIN_RU_DB = window.BUILTIN_RU_DB || [];
-
-const MEAL_TYPES = [
-  { id: 'breakfast', title: 'Завтрак', icon: '🌅' },
-  { id: 'lunch',     title: 'Обед',    icon: '☀️' },
-  { id: 'dinner',    title: 'Ужин',    icon: '🌙' },
-  { id: 'snack',     title: 'Перекус', icon: '🍏' }
-];
-
 function getLocalDateString(dateObj) {
   const y = dateObj.getFullYear();
   const m = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -56,80 +72,407 @@ function parseLocalDate(yyyyMmDd) {
   return new Date(parts[0], parts[1] - 1, parts[2]);
 }
 
-let currentDateStr = getLocalDateString(new Date());
-let calendarMonthDate = new Date();
+var currentDateStr = getLocalDateString(new Date());
+var calendarMonthDate = new Date();
+var activeAuthUser = safeLocalGet('chepoel_active_user') || 'guest';
 
-let state = {
-  goals: { kcal: 2000, p: 140, f: 65, c: 210, mode: 'lose', label: 'Похудение (-15%)' },
-  profile: {
-    nickname: 'CyberAthlete',
-    status: 'На сушке • Иду к цели 🔥',
-    avatarEmoji: '⚡',
-    avatarImg: '',
-    frame: 'frame-cyber',
-    banner: 'banner-cyber',
-    bannerImg: ''
-  },
-  days: {},
-  weightLog: [
-    { date: '2026-10-08', kg: 75.4 },
-    { date: '2026-10-10', kg: 75.0 },
-    { date: '2026-10-12', kg: 74.6 },
-    { date: '2026-10-14', kg: 74.2 }
-  ],
-  customProducts: [],
-  recentItems: [],
-  apiKey: '',
-  theme: 'dark',
-  onboarded: false
-};
+function createDefaultState() {
+  return {
+    goals: { kcal: 2000, p: 140, f: 65, c: 210, mode: 'lose', label: 'Похудение (-15%)' },
+    profile: {
+      nickname: 'Атлет',
+      status: 'Иду к своей лучшей форме 🔥',
+      avatarEmoji: '⚡',
+      avatarImg: '',
+      frame: 'frame-emerald',
+      banner: 'banner-aurora',
+      bannerImg: '',
+      nickEffect: ''
+    },
+    days: {},
+    weightLog: [
+      { date: '2026-10-10', kg: 75.4 },
+      { date: '2026-10-12', kg: 75.0 },
+      { date: '2026-10-14', kg: 74.6 }
+    ],
+    customProducts: [],
+    recentItems: [],
+    apiKey: '',
+    theme: 'dark',
+    onboarded: false,
+    registeredDate: getLocalDateString(new Date()),
+    purchasedShields: 0,
+    spentShieldXp: 0,
+    autoFreeze: true,
+    bonusXp: 0,
+    lastSeenLevel: 1,
+    cloudConfig: {
+      supabaseUrl: '',
+      supabaseKey: '',
+      lastSyncAt: ''
+    }
+  };
+}
+
+var state = createDefaultState();
+
+/* ==================== INDEXEDDB ENGINE (ChePoelDB) ==================== */
+let _idbInstance = null;
+
+function openChePoelIDB() {
+  if (_idbInstance) return Promise.resolve(_idbInstance);
+  if (!('indexedDB' in window)) return Promise.resolve(null);
+  return new Promise(resolve => {
+    try {
+      const req = indexedDB.open('ChePoelDB', 1);
+      req.onupgradeneeded = function(e) {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('accounts')) {
+          db.createObjectStore('accounts', { keyPath: 'username' });
+        }
+        if (!db.objectStoreNames.contains('states')) {
+          db.createObjectStore('states', { keyPath: 'username' });
+        }
+      };
+      req.onsuccess = function(e) {
+        _idbInstance = e.target.result;
+        resolve(_idbInstance);
+      };
+      req.onerror = function() { resolve(null); };
+    } catch (err) {
+      resolve(null);
+    }
+  });
+}
+
+async function idbPut(storeName, record) {
+  const db = await openChePoelIDB();
+  if (!db) return false;
+  return new Promise(resolve => {
+    try {
+      const tx = db.transaction(storeName, 'readwrite');
+      tx.objectStore(storeName).put(record);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    } catch (e) { resolve(false); }
+  });
+}
+
+async function idbGet(storeName, key) {
+  const db = await openChePoelIDB();
+  if (!db) return null;
+  return new Promise(resolve => {
+    try {
+      const tx = db.transaction(storeName, 'readonly');
+      const req = tx.objectStore(storeName).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    } catch (e) { resolve(null); }
+  });
+}
+
+async function idbGetAll(storeName) {
+  const db = await openChePoelIDB();
+  if (!db) return [];
+  return new Promise(resolve => {
+    try {
+      const tx = db.transaction(storeName, 'readonly');
+      const req = tx.objectStore(storeName).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    } catch (e) { resolve([]); }
+  });
+}
+
+/* ==================== AUTH & ACCOUNTS REGISTRY ==================== */
+function getLocalAccountsMap() {
+  try {
+    return JSON.parse(safeLocalGet('chepoel_accounts_v4') || '{}');
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveLocalAccountsMap(map) {
+  try {
+    safeLocalSet('chepoel_accounts_v4', JSON.stringify(map));
+  } catch (e) {}
+}
+
+async function hashPassword(raw) {
+  const clean = String(raw || '').trim();
+  if (!clean) return '';
+  try {
+    if (window.crypto && window.crypto.subtle) {
+      const buf = new TextEncoder().encode('chepoel_salt_v4_' + clean);
+      const digest = await window.crypto.subtle.digest('SHA-256', buf);
+      return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+  } catch (e) {}
+  // Fallback hash for non-HTTPS local preview
+  let h = 2166136261;
+  const str = 'chepoel_salt_v4_' + clean;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return 'fnv_' + (h >>> 0).toString(16);
+}
+
+function getStorageKeyForUser(username) {
+  const u = (username || 'guest').toLowerCase().trim();
+  return u === 'guest' ? 'nutriscan_pwa_state_v3' : `chepoel_state_u_${u}`;
+}
+
+function sanitizeLoadedState(parsed) {
+  const def = createDefaultState();
+  const merged = Object.assign({}, def, parsed || {});
+  merged.goals = Object.assign({}, def.goals, (parsed && parsed.goals) || {});
+  merged.profile = Object.assign({}, def.profile, (parsed && parsed.profile) || {});
+  merged.cloudConfig = Object.assign({}, def.cloudConfig, (parsed && parsed.cloudConfig) || {});
+  if (!Array.isArray(merged.customProducts)) merged.customProducts = [];
+  if (!Array.isArray(merged.recentItems)) merged.recentItems = [];
+  merged.recentItems = merged.recentItems.map(normalizeProductItem).filter(x => x && x.kcal100 > 0);
+  merged.customProducts = merged.customProducts.map(normalizeProductItem).filter(Boolean);
+  if (!Array.isArray(merged.weightLog)) merged.weightLog = [];
+  if (!merged.days || typeof merged.days !== 'object') merged.days = {};
+  return merged;
+}
 
 function loadState() {
   try {
-    const raw = localStorage.getItem('nutriscan_pwa_state_v3');
+    activeAuthUser = safeLocalGet('chepoel_active_user') || 'guest';
+    const key = getStorageKeyForUser(activeAuthUser);
+    const raw = safeLocalGet(key);
     if (raw) {
-      const parsed = JSON.parse(raw);
-      state = Object.assign({}, state, parsed);
-      state.goals = Object.assign({ kcal: 2000, p: 140, f: 65, c: 210, mode: 'lose', label: 'Похудение (-15%)' }, parsed.goals || {});
-      state.profile = Object.assign({
-        nickname: 'CyberAthlete',
-        status: 'На сушке • Иду к цели 🔥',
-        avatarEmoji: '⚡',
-        avatarImg: '',
-        frame: 'frame-cyber',
-        banner: 'banner-cyber',
-        bannerImg: ''
-      }, parsed.profile || {});
-      if (!Array.isArray(state.customProducts)) state.customProducts = [];
-      if (!Array.isArray(state.recentItems)) state.recentItems = [];
-      state.recentItems = state.recentItems.map(normalizeProductItem).filter(x => x && x.kcal100 > 0);
-      state.customProducts = (state.customProducts || []).map(normalizeProductItem).filter(Boolean);
-      if (!Array.isArray(state.weightLog)) state.weightLog = [];
+      state = sanitizeLoadedState(JSON.parse(raw));
+    } else {
+      state = createDefaultState();
     }
   } catch (e) {
     console.warn('State load error:', e);
+    state = createDefaultState();
   }
+}
+
+async function initDatabaseAndSyncUser() {
+  await openChePoelIDB();
+  const rec = await idbGet('states', activeAuthUser);
+  if (rec && rec.state) {
+    // Merge IndexedDB state if it has more or newer data
+    const idbMealsCount = Object.values(rec.state.days || {}).reduce((s, d) => s + ((d && d.meals && d.meals.length) || 0), 0);
+    const curMealsCount = Object.values(state.days || {}).reduce((s, d) => s + ((d && d.meals && d.meals.length) || 0), 0);
+    if (idbMealsCount >= curMealsCount && rec.updatedAt >= (state._updatedAt || 0)) {
+      state = sanitizeLoadedState(rec.state);
+      safeLocalSet(getStorageKeyForUser(activeAuthUser), JSON.stringify(state));
+    }
+  } else {
+    await idbPut('states', { username: activeAuthUser, state, updatedAt: Date.now() });
+  }
+  updateHeaderAuthButton();
 }
 
 function saveState() {
   try {
-    localStorage.setItem('nutriscan_pwa_state_v3', JSON.stringify(state));
+    state._updatedAt = Date.now();
+    const key = getStorageKeyForUser(activeAuthUser);
+    safeLocalSet(key, JSON.stringify(state));
+    idbPut('states', { username: activeAuthUser, state, updatedAt: state._updatedAt });
+    updateHeaderAuthButton();
   } catch (e) {
     console.warn('State save error:', e);
   }
 }
 
-async function loadRuProductsDatabase() {
-  if (window.BUILTIN_RU_DB && window.BUILTIN_RU_DB.length > 0) return window.BUILTIN_RU_DB;
-  try {
-    const res = await fetch('./assets/data/ru-products.json');
-    if (res.ok) {
-      window.BUILTIN_RU_DB = await res.json();
-    }
-  } catch (e) {
-    console.warn('Offline or local file mode, using embedded DB if available');
+/* ==================== PROGRESSIVE XP & 5-LEVEL REWARD SYSTEM ==================== */
+const LEVEL_RANKS = [
+  { minLvl: 1,  title: '🌱 Новичок режима' },
+  { minLvl: 5,  title: '⚡ Кибер-Следопыт' },
+  { minLvl: 10, title: '💜 Адепт Дисциплины' },
+  { minLvl: 15, title: '🔥 Машина Режима' },
+  { minLvl: 20, title: '👑 Повелитель Калорий' },
+  { minLvl: 25, title: '🌌 Архитектор Формы' },
+  { minLvl: 30, title: '💎 Легенда ЧёПоел' }
+];
+
+/* С каждым уровнем требуется на 85 XP больше, чем на предыдущем */
+function getXpNeededForNextLevel(lvl) {
+  return 200 + (Math.max(1, lvl) - 1) * 85;
+}
+
+function getTotalXpForReachingLevel(targetLvl) {
+  let sum = 0;
+  for (let l = 1; l < targetLvl; l++) {
+    sum += getXpNeededForNextLevel(l);
   }
-  return window.BUILTIN_RU_DB;
+  return sum;
+}
+
+function getRankTitleForLevel(lvl) {
+  let rank = LEVEL_RANKS[0].title;
+  for (const r of LEVEL_RANKS) {
+    if (lvl >= r.minLvl) rank = r.title;
+  }
+  return rank;
+}
+
+function getStartTrackingDate() {
+  const todayStr = getLocalDateString(new Date());
+  let earliest = state.registeredDate || todayStr;
+  Object.keys(state.days || {}).forEach(dStr => {
+    const dObj = state.days[dStr] || {};
+    const tot = getDayTotals(dStr);
+    if (tot.count > 0 || dObj.simulatedMiss || dObj.freezeUsed || dObj.penaltyRedeemed) {
+      if (dStr < earliest) earliest = dStr;
+    }
+  });
+  return earliest;
+}
+
+function calculateProfileStats() {
+  let totalMeals = 0;
+  let greenDays = 0;
+  let loggedDays = 0;
+  let waterNormDays = 0;
+
+  Object.keys(state.days || {}).forEach(dStr => {
+    const dayObj = state.days[dStr] || {};
+    if ((dayObj.waterMl || 0) >= 1500) waterNormDays++;
+    const tot = getDayTotals(dStr);
+    if (tot.count > 0) {
+      loggedDays++;
+      totalMeals += tot.count;
+      const ev = evaluateDayColorStatus(tot.kcal, state.goals.kcal, state.goals.mode);
+      if (ev.status === 'green') greenDays++;
+    }
+  });
+
+  // Подсчёт щитов заморозки: 1 стартовый + 1 за каждые 5 зелёных дней + купленные за XP
+  const totalEarnedShields = 1 + Math.floor(greenDays / 5) + (Number(state.purchasedShields) || 0);
+  let usedShieldsCount = 0;
+  Object.keys(state.days || {}).forEach(dStr => {
+    if (state.days[dStr] && state.days[dStr].freezeUsed) usedShieldsCount++;
+  });
+  let availableShields = Math.max(0, totalEarnedShields - usedShieldsCount);
+
+  // Анализ прошедших дней (от старта ведения дневника до вчерашнего дня) на пропуски
+  const todayStr = getLocalDateString(new Date());
+  const startStr = getStartTrackingDate();
+  const missedDaysList = [];
+  const frozenDaysList = [];
+  const redeemedDaysList = [];
+
+  if (startStr < todayStr) {
+    const cur = parseLocalDate(startStr);
+    const todayDt = parseLocalDate(todayStr);
+    let safety = 0;
+    while (cur < todayDt && safety < 366) {
+      const dStr = getLocalDateString(cur);
+      const tot = getDayTotals(dStr);
+      const dObj = state.days[dStr] || {};
+      if (tot.count === 0) {
+        if (dObj.freezeUsed) {
+          frozenDaysList.push(dStr);
+        } else if (dObj.penaltyRedeemed) {
+          redeemedDaysList.push(dStr);
+        } else {
+          missedDaysList.push(dStr);
+        }
+      }
+      cur.setDate(cur.getDate() + 1);
+      safety++;
+    }
+  }
+
+  // Подсчёт активного стрика (замороженные и отработанные дни сохраняют стрик!)
+  let streak = 0;
+  const cursor = new Date();
+  for (let i = 0; i < 365; i++) {
+    const dStr = getLocalDateString(cursor);
+    const tot = getDayTotals(dStr);
+    const dObj = state.days[dStr] || {};
+    if (tot.count > 0) {
+      streak++;
+    } else if (dObj.freezeUsed || dObj.penaltyRedeemed) {
+      // День защищён щитом или отработан — стрик не прерывается
+    } else if (i > 0) {
+      break;
+    }
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  const streakBonusXp = streak >= 7 ? 350 : (streak >= 3 ? 120 : 0);
+  const earnedXp =
+    (totalMeals * 45) +
+    (greenDays * 140) +
+    (waterNormDays * 60) +
+    ((state.customProducts || []).length * 75) +
+    ((state.weightLog || []).length * 40) +
+    streakBonusXp;
+
+  // Штраф за пропуск дня: -100 XP за каждый незащищённый пропущенный день + доп. -50 XP при серии 2+ пропусков
+  const consecutiveMissPenalty = missedDaysList.length >= 2 ? 50 : 0;
+  const penaltyXp = (missedDaysList.length * 100) + consecutiveMissPenalty;
+  const spentShieldXp = Number(state.spentShieldXp) || 0;
+
+  const xp = Math.max(0, earnedXp - penaltyXp - spentShieldXp);
+
+  // Прогрессивный расчёт уровня (с каждым уровнем требуется на +85 XP больше)
+  let level = 1;
+  let remXp = xp;
+  while (level < 100) {
+    const needed = getXpNeededForNextLevel(level);
+    if (remXp >= needed) {
+      remXp -= needed;
+      level++;
+    } else {
+      break;
+    }
+  }
+
+  const currentLevelXp = remXp;
+  const nextLevelXp = getXpNeededForNextLevel(level);
+  const nextMilestoneLvl = Math.ceil((level + 0.1) / 5) * 5;
+  const rankTitle = getRankTitleForLevel(level);
+
+  return {
+    level,
+    xp,
+    earnedXp,
+    penaltyXp,
+    missedDaysCount: missedDaysList.length,
+    missedDaysList,
+    frozenDaysList,
+    redeemedDaysList,
+    availableShields,
+    usedShieldsCount,
+    currentLevelXp,
+    nextLevelXp,
+    streak,
+    totalMeals,
+    greenDays,
+    loggedDays,
+    waterNormDays,
+    rankTitle,
+    nextMilestoneLvl
+  };
+}
+
+function checkAndTriggerLevelUp(prevLevel) {
+  const st = calculateProfileStats();
+  if (st.level > (prevLevel || state.lastSeenLevel || 1)) {
+    state.lastSeenLevel = st.level;
+    saveState();
+    if (typeof openLevelUpCelebrationModal === 'function') {
+      openLevelUpCelebrationModal(st.level);
+    }
+  } else {
+    state.lastSeenLevel = st.level;
+  }
+}
+
+async function loadRuProductsDatabase() {
+  return window.BUILTIN_RU_DB || [];
 }
 
 function getAllProducts() {
@@ -143,7 +486,6 @@ function getDayData(dateStr) {
   if (!state.days[dateStr]) {
     state.days[dateStr] = { meals: [], waterMl: 0 };
   }
-  // Ensure legacy meals without mealType default to 'breakfast'
   state.days[dateStr].meals.forEach(m => {
     if (!m.mealType) m.mealType = 'breakfast';
   });
@@ -175,8 +517,6 @@ function evaluateDayColorStatus(kcal, targetKcal, goalMode) {
   const ratio = kcal / Math.max(1, targetKcal);
 
   if (goalMode === 'lose') {
-    // Похудение: умеренный дефицит или норма (80%..102%) = отлично (зелёный)
-    // Сильный недобор (<70%) или перебор (>112%) = плохо (красный)
     if (ratio >= 0.80 && ratio <= 1.02) {
       return { status: 'green', label: 'Идеальный дефицит (Зелёная зона)', css: 'cal-green' };
     } else if ((ratio >= 0.70 && ratio < 0.80) || (ratio > 1.02 && ratio <= 1.12)) {
@@ -185,7 +525,6 @@ function evaluateDayColorStatus(kcal, targetKcal, goalMode) {
       return { status: 'red', label: ratio < 0.70 ? 'Сильный недобор (голодание)' : 'Перебор калорий', css: 'cal-red' };
     }
   } else if (goalMode === 'gain') {
-    // Набор массы: качественный профицит (96%..116%) = отлично (зелёный)
     if (ratio >= 0.96 && ratio <= 1.16) {
       return { status: 'green', label: 'Отличный профицит для роста', css: 'cal-green' };
     } else if ((ratio >= 0.86 && ratio < 0.96) || (ratio > 1.16 && ratio <= 1.26)) {
@@ -194,7 +533,6 @@ function evaluateDayColorStatus(kcal, targetKcal, goalMode) {
       return { status: 'red', label: ratio < 0.86 ? 'Сильный недобор для массы' : 'Слишком большой профицит', css: 'cal-red' };
     }
   } else {
-    // Поддержание: 90%..108% = зелёный
     if (ratio >= 0.90 && ratio <= 1.08) {
       return { status: 'green', label: 'Точное попадание в баланс', css: 'cal-green' };
     } else if ((ratio >= 0.78 && ratio < 0.90) || (ratio > 1.08 && ratio <= 1.18)) {
@@ -203,44 +541,6 @@ function evaluateDayColorStatus(kcal, targetKcal, goalMode) {
       return { status: 'red', label: ratio < 0.78 ? 'Сильный недобор' : 'Сильный перебор', css: 'cal-red' };
     }
   }
-}
-
-/* Gamification: Calculate XP, Level & Streak */
-function calculateProfileStats() {
-  let totalMeals = 0;
-  let greenDays = 0;
-  let loggedDays = 0;
-
-  Object.keys(state.days).forEach(dStr => {
-    const tot = getDayTotals(dStr);
-    if (tot.count > 0) {
-      loggedDays++;
-      totalMeals += tot.count;
-      const ev = evaluateDayColorStatus(tot.kcal, state.goals.kcal, state.goals.mode);
-      if (ev.status === 'green') greenDays++;
-    }
-  });
-
-  // Calculate active streak ending today or yesterday
-  let streak = 0;
-  const cursor = new Date();
-  for (let i = 0; i < 365; i++) {
-    const dStr = getLocalDateString(cursor);
-    const tot = getDayTotals(dStr);
-    if (tot.count > 0) {
-      streak++;
-    } else if (i > 0) {
-      break;
-    }
-    cursor.setDate(cursor.getDate() - 1);
-  }
-
-  const xp = (totalMeals * 40) + (greenDays * 150) + ((state.customProducts || []).length * 60);
-  const level = Math.max(1, Math.floor(xp / 300) + 1);
-  const currentLevelXp = xp % 300;
-  const nextLevelXp = 300;
-
-  return { level, xp, currentLevelXp, nextLevelXp, streak, totalMeals, greenDays, loggedDays };
 }
 
 function recordRecentItem(item) {
@@ -262,7 +562,8 @@ function recordRecentItem(item) {
 function exportBackupJson() {
   const payload = {
     app: 'ЧёПоел PWA',
-    version: '3.0.0',
+    version: '4.0.0',
+    user: activeAuthUser,
     exportedAt: new Date().toISOString(),
     state: state
   };
@@ -270,12 +571,12 @@ function exportBackupJson() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `chepoel_backup_${getLocalDateString(new Date())}.json`;
+  a.download = `chepoel_${activeAuthUser}_${getLocalDateString(new Date())}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  showToast('📥 Бэкап успешно скачан');
+  showToast('📥 Бэкап базы успешно скачан');
 }
 
 function importBackupJsonFile(event) {
@@ -287,12 +588,12 @@ function importBackupJsonFile(event) {
       const data = JSON.parse(e.target.result);
       const importedState = data.state ? data.state : data;
       if (importedState && typeof importedState === 'object') {
-        state = Object.assign({}, state, importedState);
+        state = sanitizeLoadedState(importedState);
         saveState();
         applyTheme(state.theme || 'dark');
         renderAll();
         closeSettingsModal();
-        showToast('✅ Бэкап успешно восстановлен!');
+        showToast('✅ База данных успешно восстановлена!');
       }
     } catch (err) {
       showToast('⚠️ Ошибка чтения файла бэкапа');

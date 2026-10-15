@@ -1,4 +1,4 @@
-/* css/tokens.css — Design System Tokens, Themes & Steam/Discord Profile Cosmetics */
+/* css/tokens.css — Design System Tokens, 3 Base Themes & Milestone Level 5..30 Cosmetics */
 :root {
   --bg: #0b1120;
   --bg-elevated: #111827;
@@ -42,66 +42,215 @@ body.light-theme {
   --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.08);
 }
 
-/* Profile Banners (Steam / Discord Showcase Styles) */
-.banner-cyber {
-  background: radial-gradient(circle at 80% 20%, rgba(236, 72, 153, 0.45), transparent 50%),
-              radial-gradient(circle at 20% 80%, rgba(6, 182, 212, 0.45), transparent 55%),
-              linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #311042 100%);
+/* ==================== 3 БАЗОВЫЕ РАСЦВЕТКИ ПРОФИЛЯ (УРОВЕНЬ 1) ==================== */
+.banner-obsidian {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
 }
 .banner-aurora {
-  background: radial-gradient(circle at 15% 30%, rgba(16, 185, 129, 0.5), transparent 55%),
-              radial-gradient(circle at 85% 70%, rgba(59, 130, 246, 0.45), transparent 55%),
-              linear-gradient(135deg, #06281e 0%, #0f172a 60%, #0c2340 100%);
+  background: radial-gradient(circle at 15% 30%, rgba(16, 185, 129, 0.48), transparent 55%),
+              radial-gradient(circle at 85% 70%, rgba(20, 184, 166, 0.35), transparent 55%),
+              linear-gradient(135deg, #06281e 0%, #0f172a 65%, #0c2340 100%);
 }
-.banner-nebula {
-  background: radial-gradient(circle at 70% 30%, rgba(139, 92, 246, 0.55), transparent 50%),
-              radial-gradient(circle at 30% 70%, rgba(244, 63, 94, 0.4), transparent 55%),
-              linear-gradient(135deg, #1a0b2e 0%, #0f172a 100%);
-}
-.banner-tokyo {
-  background: radial-gradient(circle at 80% 25%, rgba(245, 158, 11, 0.42), transparent 50%),
-              radial-gradient(circle at 20% 75%, rgba(239, 68, 68, 0.38), transparent 55%),
-              linear-gradient(135deg, #18181b 0%, #27121b 60%, #090d16 100%);
-}
-.banner-gold {
-  background: radial-gradient(circle at 50% 0%, rgba(251, 191, 36, 0.45), transparent 65%),
-              linear-gradient(135deg, #1c1917 0%, #292524 50%, #0f172a 100%);
-}
-.banner-obsidian {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+.banner-ocean {
+  background: radial-gradient(circle at 80% 25%, rgba(59, 130, 246, 0.48), transparent 55%),
+              radial-gradient(circle at 20% 75%, rgba(14, 165, 233, 0.38), transparent 55%),
+              linear-gradient(135deg, #081c38 0%, #0f172a 60%, #172554 100%);
 }
 
-/* Steam Points Shop Animated Avatar Frames */
+/* ==================== НАГРАДНЫЕ РАСЦВЕТКИ ПРОФИЛЯ (УРОВНИ 5, 10, 15, 20, 25, 30) ==================== */
+/* LVL 5: Cyber Synthwave */
+.banner-cyber {
+  background: radial-gradient(circle at 80% 20%, rgba(236, 72, 153, 0.55), transparent 50%),
+              radial-gradient(circle at 20% 80%, rgba(6, 182, 212, 0.55), transparent 55%),
+              linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #3b0764 100%);
+}
+/* LVL 10: Nitro Nebula */
+.banner-nebula {
+  background: radial-gradient(circle at 75% 25%, rgba(139, 92, 246, 0.65), transparent 50%),
+              radial-gradient(circle at 25% 75%, rgba(244, 63, 94, 0.48), transparent 55%),
+              linear-gradient(135deg, #1e0b36 0%, #0f172a 55%, #311042 100%);
+}
+/* LVL 15: Crimson Inferno */
+.banner-tokyo {
+  background: radial-gradient(circle at 80% 25%, rgba(245, 158, 11, 0.55), transparent 50%),
+              radial-gradient(circle at 20% 75%, rgba(239, 68, 68, 0.58), transparent 55%),
+              linear-gradient(135deg, #270910 0%, #450a0a 50%, #090d16 100%);
+}
+/* LVL 20: Dragon Lore Imperial Gold */
+.banner-gold {
+  background: radial-gradient(circle at 50% 0%, rgba(250, 204, 21, 0.62), transparent 65%),
+              radial-gradient(circle at 85% 80%, rgba(245, 158, 11, 0.45), transparent 55%),
+              linear-gradient(135deg, #291d0a 0%, #422006 50%, #0f172a 100%);
+}
+/* LVL 25: Quantum Matrix */
+.banner-quantum {
+  background: radial-gradient(circle at 20% 20%, rgba(0, 255, 170, 0.58), transparent 50%),
+              radial-gradient(circle at 80% 80%, rgba(56, 189, 248, 0.58), transparent 50%),
+              linear-gradient(135deg, #022c22 0%, #091e3a 50%, #042f2e 100%);
+  background-size: 200% 200%;
+  animation: bannerShift 6s ease infinite;
+}
+/* LVL 30: Chroma Godlike RGB */
+.banner-chroma {
+  background: linear-gradient(125deg, #ec4899, #8b5cf6, #06b6d4, #10b981, #f59e0b, #ef4444);
+  background-size: 300% 300%;
+  animation: bannerShift 4.5s linear infinite;
+}
+
+@keyframes bannerShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ==================== РАМКИ АВАТАРА (3 БАЗОВЫХ + 6 НАГРАДНЫХ) ==================== */
 @keyframes spinGlow {
   0% { filter: hue-rotate(0deg); }
   100% { filter: hue-rotate(360deg); }
 }
 @keyframes pulseGold {
-  0%, 100% { box-shadow: 0 0 0 3px #f59e0b, 0 0 18px rgba(245, 158, 11, 0.75); }
-  50% { box-shadow: 0 0 0 4px #fde047, 0 0 28px rgba(253, 224, 71, 0.95); }
+  0%, 100% { box-shadow: 0 0 0 3px #f59e0b, 0 0 18px rgba(245, 158, 11, 0.78); }
+  50% { box-shadow: 0 0 0 4px #fde047, 0 0 32px rgba(253, 224, 71, 0.98); }
 }
+@keyframes pulseFire {
+  0%, 100% { box-shadow: 0 0 0 3px #ef4444, 0 0 18px rgba(249, 115, 22, 0.8); }
+  50% { box-shadow: 0 0 0 4px #fb923c, 0 0 30px rgba(239, 68, 68, 0.98); }
+}
+
+/* Base Frames (LVL 1) */
+.frame-minimal {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.28);
+  border: 2px solid rgba(255, 255, 255, 0.45) !important;
+}
+.frame-emerald {
+  box-shadow: 0 0 0 3px #10b981, 0 0 16px rgba(16, 185, 129, 0.55);
+  border: 2px solid #6ee7b7 !important;
+}
+.frame-ocean {
+  box-shadow: 0 0 0 3px #3b82f6, 0 0 16px rgba(59, 130, 246, 0.55);
+  border: 2px solid #93c5fd !important;
+}
+
+/* Unlockable Frames (LVL 5, 10, 15, 20, 25, 30) */
 .frame-cyber {
-  box-shadow: 0 0 0 3px #06b6d4, 0 0 20px rgba(236, 72, 153, 0.8), inset 0 0 12px rgba(6, 182, 212, 0.5);
+  box-shadow: 0 0 0 3px #06b6d4, 0 0 22px rgba(236, 72, 153, 0.85), inset 0 0 12px rgba(6, 182, 212, 0.5);
   border: 2px solid #f472b6 !important;
   animation: spinGlow 6s linear infinite;
 }
-.frame-gold {
-  border: 2px solid #fef08a !important;
-  animation: pulseGold 2.8s ease-in-out infinite;
-}
-.frame-emerald {
-  box-shadow: 0 0 0 3px #10b981, 0 0 22px rgba(16, 185, 129, 0.8);
-  border: 2px solid #6ee7b7 !important;
-}
 .frame-discord {
-  box-shadow: 0 0 0 3px #6366f1, 0 0 22px rgba(139, 92, 246, 0.85);
+  box-shadow: 0 0 0 3px #6366f1, 0 0 24px rgba(139, 92, 246, 0.9);
   border: 2px solid #c4b5fd !important;
 }
 .frame-fire {
-  box-shadow: 0 0 0 3px #f43f5e, 0 0 24px rgba(249, 115, 22, 0.85);
   border: 2px solid #fdba74 !important;
+  animation: pulseFire 2.4s ease-in-out infinite;
 }
-.frame-minimal {
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
-  border: 2px solid rgba(255, 255, 255, 0.4) !important;
+.frame-gold {
+  border: 2px solid #fef08a !important;
+  animation: pulseGold 2.6s ease-in-out infinite;
+}
+.frame-quantum {
+  box-shadow: 0 0 0 3px #00ffaa, 0 0 26px rgba(56, 189, 248, 0.95), inset 0 0 14px rgba(0, 255, 170, 0.6);
+  border: 2px solid #67e8f9 !important;
+  animation: spinGlow 4s linear infinite;
+}
+.frame-chroma {
+  box-shadow: 0 0 0 4px #ec4899, 0 0 32px rgba(139, 92, 246, 0.95), 0 0 48px rgba(6, 182, 212, 0.75);
+  border: 2px solid #ffffff !important;
+  animation: spinGlow 2.5s linear infinite;
+}
+
+/* Градиентные спецэффекты никнейма за уровни */
+.nick-cyber {
+  background: linear-gradient(90deg, #22d3ee, #f472b6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.nick-nitro {
+  background: linear-gradient(90deg, #a78bfa, #f472b6, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.nick-fire {
+  background: linear-gradient(90deg, #fb923c, #ef4444, #fde047);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.nick-gold {
+  background: linear-gradient(90deg, #fef08a, #f59e0b, #fde047);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.nick-quantum {
+  background: linear-gradient(90deg, #34d399, #22d3ee, #38bdf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.nick-chroma {
+  background: linear-gradient(90deg, #f43f5e, #a855f7, #06b6d4, #10b981, #eab308);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: spinGlow 4s linear infinite;
+}
+
+/* Карточки выбора косметики и шкалы наград */
+.cosmetic-pick-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 9px 11px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--input-bg);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.18s ease;
+  min-height: 54px;
+}
+.cosmetic-pick-btn.active {
+  border-color: var(--accent);
+  background: rgba(16, 185, 129, 0.14);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.cosmetic-pick-btn.locked {
+  opacity: 0.62;
+  border-style: dashed;
+}
+.cosmetic-lvl-tag {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 999px;
+  margin-top: 4px;
+  display: inline-block;
+}
+.cosmetic-lvl-tag.unlocked {
+  background: rgba(16, 185, 129, 0.18);
+  color: #6ee7b7;
+}
+.cosmetic-lvl-tag.locked {
+  background: rgba(244, 63, 94, 0.18);
+  color: #fda4af;
+}
+.reward-tier-card {
+  border-radius: 16px;
+  padding: 13px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--input-bg);
+  transition: all 0.2s ease;
+}
+.reward-tier-card.unlocked {
+  border-color: rgba(16, 185, 129, 0.45);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.10), rgba(15, 23, 42, 0.75));
+}
+.logged-row {
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+.logged-row:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
